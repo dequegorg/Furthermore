@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import division
+
 __author__="Benjamin Trias"
 __version__ = '0.5'
 
@@ -18,7 +20,7 @@ __version__ = '0.5'
 # GNU General Public License for more details.
 # http://www.gnu.org/licenses/licenses.html#GPL
 
-from __future__ import division
+
 from PyQt4 import QtGui, QtCore
 from popplerqt4 import Poppler
 
@@ -184,6 +186,58 @@ class Document(QtGui.QFrame):
 		self.source.setRenderHint(Poppler.Document.Antialiasing)
 
 		self.layOutPages()
+		
+		# The rubberband is used to select text from the document.
+		self.rubberband = QtGui.QRubberBand(QtGui.QRubberBand.Rectangle, self)
+		self.rubberband.hide()
+
+	
+	def mousePressEvent(self, event):
+
+		"""
+			Pick up event if mouse pressed on image.
+		"""
+
+		#event.accept()
+		pos = event.pos()
+		self.rubberband.origin = pos
+		self.rubberband.setGeometry(QtCore.QRect(pos, QtCore.QSize()))
+		self.rubberband.show()		
+
+	def mouseMoveEvent(self, event):
+
+		"""
+			Pick up event if mouse moves on image.
+		"""
+		
+		#event.accept()
+		pos = event.pos()
+		origin = self.rubberband.origin
+		difference = pos - origin
+		if difference.x() > 0 and difference.y() > 0:
+			self.rubberband.setGeometry(QtCore.QRect(origin, pos).normalized())
+		elif difference.x() < 0 and difference.y() < 0:
+			self.rubberband.setGeometry(QtCore.QRect(pos, origin).normalized())
+		elif difference.x() > 0 and difference.y() < 0:
+			fake_origin = QtCore.QPoint(origin.x(), pos.y())
+			fake_end = QtCore.QPoint(pos.x(), origin.y())
+			self.rubberband.setGeometry(QtCore.QRect(fake_origin, fake_end).normalized())
+		elif difference.x() < 0 and difference.y() > 0:
+			fake_origin = QtCore.QPoint(pos.x(), origin.y())
+			fake_end = QtCore.QPoint(origin.x(), pos.y())
+			self.rubberband.setGeometry(QtCore.QRect(fake_origin, fake_end).normalized())
+		else:
+			self.rubberband.setGeometry(QtCore.QRect(origin, pos).normalized())
+			
+
+	def mouseReleaseEvent(self, event):
+
+
+		"""
+			Pick up event if mouse released.
+		"""
+
+		self.rubberband.hide()
 
 	def showEvent(self, event):
 
@@ -335,10 +389,11 @@ class Page(QtGui.QFrame):
 
 		source = self.document.getSourcePage(self.page_number)
 		scale = self.display.max_scale / 100
-		image = source.renderToImage(72*scale, 72*scale)
+		image = source.renderToImage(72*scale, 72*scale)		#TODO: need to keep image for locating text later
 		pixmap = QtGui.QPixmap.fromImage(image)
 		self.image.setPixmap(pixmap)
 		self.image.pixmap = True
+		self.image.data = image
 	
 
 class Image(QtGui.QLabel):
@@ -354,6 +409,7 @@ class Image(QtGui.QLabel):
 		self.setStyleSheet("Image { background-color : white}")
 		self.setScaledContents(True)
 		self.pixmap = None
+		self.data = None
 
 	def hasPixmap(self): 
 
@@ -365,6 +421,19 @@ class Image(QtGui.QLabel):
 			return True
 		else:
 			return False
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 		
 	
