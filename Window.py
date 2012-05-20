@@ -183,7 +183,6 @@ class Document(QtGui.QFrame):
 
        		self.application = QtCore.QCoreApplication.instance()
 		self.display = self.parent()
-		
 		self.source = Poppler.Document.load(uri)
 		self.source.setRenderHint(Poppler.Document.TextAntialiasing)
 		self.source.setRenderHint(Poppler.Document.Antialiasing)
@@ -195,7 +194,8 @@ class Document(QtGui.QFrame):
 		self.rubberband = QtGui.QRubberBand(QtGui.QRubberBand.Rectangle, self)
 		self.rubberband.hide()
 		self.selection = None # selection capture by rubberband
-		self.mask = Mask(self)
+		
+		print "document loaded"
 	
 	def mousePressEvent(self, event):
 
@@ -206,10 +206,11 @@ class Document(QtGui.QFrame):
 		print "mouse press event"
 
 		# Hide the selection mask if it was already there
-		self.mask.removeFromDocument()
+		for page in self.getPages():
+			page.image.selection_mask.removeFromPage()
 
 		# Reset rubberband
-		self.rubberband.origin = event.pos()
+		self.rubberband.origin = event.pos()				
 		self.updateRubberbandGeometry(event.pos())
 		self.rubberband.show()
 
@@ -242,6 +243,7 @@ class Document(QtGui.QFrame):
 			Check which page are visible on opening the document.
 		"""
 		
+		print "show event"
 		self.checkPageVisibility()
 		event.ignore()
 
@@ -251,6 +253,7 @@ class Document(QtGui.QFrame):
 			Check if any page has become visible after moving.
 		"""
 
+		print "move event"
 		self.checkPageVisibility()
 		event.ignore()
 
@@ -259,9 +262,19 @@ class Document(QtGui.QFrame):
 		"""
 			Check if any page has become visible after scaling.
 		"""
-
+		
+		print "resize event"
 		self.checkPageVisibility()
 		event.ignore()
+
+	def applyScale(self):
+
+		"""
+			Sends a request to pages to update their size according to scale.
+		"""
+
+		for page in self.getPages():
+			page.applyScale()
 
 	def updateRubberbandGeometry(self, pos):
 
@@ -291,18 +304,15 @@ class Document(QtGui.QFrame):
 		else:
 			self.rubberband.setGeometry(QtCore.QRect(origin, pos).normalized())
 
-	def checkPageVisibility(self):						# TODO: name and content not clear
+	def checkPageVisibility(self):						
 
 		"""
-			Check which page is visible and apply image if necessary.
+			Addresses potential changes to pages which are visible.
 		"""
 
-		for page in self.getPages():
-			if not page.visibleRegion().isEmpty() and not page.image.hasPixmap():
-				# i.e. page is visible and has yet not pixmap rendered
-				page.setPixmap()
-			else:
-				pass
+		print "checking page visibility"
+		for page in self.getVisiblePages():
+			page.checkPixmap()
 
 	def getVisiblePages(self):
 
@@ -311,6 +321,7 @@ class Document(QtGui.QFrame):
 			Returns a list of pages currently visible in the display.
 		"""
 
+		print "getting visible pages"
 		visible_pages = []
 
 		for page in self.getPages():
@@ -326,10 +337,12 @@ class Document(QtGui.QFrame):
 			provided by Poppler Pages.	
 		"""
 
+		print "laying out pages"
 		self.layout = QtGui.QVBoxLayout()
 		self.layout.setSpacing(30)
 
 		for page_number, source_page in enumerate(self.getSourcePages()):
+			print "creating page", page_number
 			blank_page = Page(page_number, source_page.pageSize(), self)
 			self.layout.addWidget(blank_page)
 		
@@ -342,6 +355,7 @@ class Document(QtGui.QFrame):
 			Returns a list of Poppler.Pages from content.
 		"""
 
+		print "getting source pages"
 		source_pages = []
 
 		for number in range(self.source.numPages()):
@@ -355,6 +369,7 @@ class Document(QtGui.QFrame):
 			Returns a single Poppler.Page from content, based on page number.
 		"""
 
+		print "getting source page, for page number", page_number
 		return self.source.page(page_number)
 
 	def getPages(self):
@@ -363,6 +378,7 @@ class Document(QtGui.QFrame):
 			Returns a list of page widgets (QFrame) from document widget.
 		"""
 
+		print "getting pages"
 		pages = []
 		for child in self.children():
 			if isinstance(child, Page):
@@ -377,6 +393,7 @@ class Document(QtGui.QFrame):
 			Returns page widget (QFrame) for page number.
 		"""
 		
+		print "getting page", page_number
 		return self.getPages()[page_number]
 
 	def getPageNumber(self, page):
@@ -385,32 +402,21 @@ class Document(QtGui.QFrame):
 			Returns page number of page.
 		"""
 
+		print "getting page number for page", page
 		return page.page_number
 
-	def pageHasText(self, page):
+	def pageHasText(self, page):						#FIXME: should be a page method
 
 		"""
 			Returns True if Poppler.Page associated to Page contains text,
 			otherwise returns False.
 		"""
 
+		print "checking if page", page.page_number," has text"
 		if len(self.getSourcePage(self.getPageNumber(page)).textList()) == 0:
 			return False
 		else:
 			return True
-
-	def applyScale(self):							#TODO Apply scale to visible only and gain speed.
-
-		"""
-			Set pages' image size to scale.
-		"""
-		
-		scale = self.display.scale / 100
-
-		for page in self.getPages():
-			page_number = self.getPageNumber(page)
-			size = self.getSourcePage(page_number).pageSize()
-			page.image.setFixedSize(size.width() * scale, size.height() *scale)
 
 	def scaledFromSelection(self, selected_area, page):
 
@@ -418,11 +424,12 @@ class Document(QtGui.QFrame):
 			Returns a QRectF from selection, mapped to Poppler.Page.
 		"""
 
+		print "mapping selection to page"
 		scale = self.display.scale / 100
 		# convert document area to page-centric area in full scale.
 		# NB: Page.Image.pixmap is loaded at full scale and stretched on display.
-		return QtCore.QRectF((selected_area.x() - page.geometry().x()) / scale,
-				      	(selected_area.y() - page.geometry().y()) / scale,
+		return QtCore.QRectF((selected_area.x() - page.x()) / scale,
+				      	(selected_area.y() - page.y()) / scale,
 				      	selected_area.width() / scale,
 				      	selected_area.height() / scale)
 	
@@ -432,15 +439,13 @@ class Document(QtGui.QFrame):
 			Returns a QRectF from selection, mapped to Document.
 
 		"""
-
+		print "mapping page to selection"
 		scale = self.display.scale / 100
 
-		# here the coordinate of the document (= mask) is substracted because
-		# whereas the rubberband selection was a child of the page, the mask's focus is the mask itself
-		# when scrolling or scaling, the focus area has to move with the mask, the coordinates of which
-		# are based on the Document's which itself is based on its parent i.e. the Display.
-		return QtCore.QRectF(selection.x() * scale + page.geometry().x() - self.geometry().x(),
-				      	selection.y() * scale + page.geometry().y() - self.geometry().y(),
+		# since the selection is applied to image (whereas it was draw from document)
+		# it is not necessary to add up the coordinate of the page.
+		return QtCore.QRectF(selection.x() * scale,
+				      	selection.y() * scale,
 				      	selection.width() * scale,
 				      	selection.height() * scale)
 	
@@ -450,6 +455,7 @@ class Document(QtGui.QFrame):
 			Registers pages, areas and text captured within rubberband's geometry.
 		"""
 
+		print "capturing selection"
 		selection = []
 
 		# impose a minimum of 10px width an height for selection to be valid
@@ -461,11 +467,16 @@ class Document(QtGui.QFrame):
 		# otherwise selection ought to be on visible pages
 		for page in self.getVisiblePages():
 			# as well as intersect with any of those visible pages
+			print "page geometry is", page.geometry()
+			print "image geometry is", page.image.geometry()
+			print "rubberband selection is", self.rubberband.geometry()
 			if page.geometry().intersects(self.rubberband.geometry()):
 				selected_area = page.geometry().intersected(self.rubberband.geometry())
 				# we keep the true scale of the selection, i.e. what it would be at 100 %
 				# that's easier to re-use and to handle if the document is scaled
 				true_area = self.scaledFromSelection(selected_area, page)
+				print "intersection is:", selected_area
+				print "poppler selection is:", true_area
 				if self.pageHasText(page):
 					# see if there is text in this selected area of the Poppler.Page
 					selected_text = self.getSourcePage(self.getPageNumber(page)).text(true_area)
@@ -479,9 +490,14 @@ class Document(QtGui.QFrame):
 					    	})
 		
 		self.selection = selection
+		print "selection captured"
+		for item in selection:
+			print item
 
 		# apply the mask to the selection
-		self.mask.applyToDocument()
+		if len(self.selection) > 0:
+			for page in self.getPages():
+				page.image.selection_mask.applyToPage()
 	
 	def isTextSelected(self):
 
@@ -489,24 +505,11 @@ class Document(QtGui.QFrame):
 			Checks whether there is text in selection.
 		"""		
 		
+		print "checking if text is selected"
 		for item in self.selection:
 			if len(item['text']) > 0:
 				return True
 		return False
-
-	def setFocus(self):
-
-		"""
-			Masks the region of the document that is not selected.
-		"""
-
-		if len(self.selection) == 0:
-			print "no selection, hence no focus"
-			return
-		if self.isTextSelected():
-			self.setFocusOnSelectedText()
-		else:
-			self.setFocusOnSelectedArea()
 
 	def setFocusOnSelectedText(self):
 
@@ -522,30 +525,11 @@ class Document(QtGui.QFrame):
 
 		pass
 
-	def setFocusOnSelectedArea(self):
-
-		"""
-			Masks the region of the document which does not match with the rubberband's.
-		"""
-
-		# for each selection, scale area rect to display size
-		focus_areas = []
-		for item in self.selection:
-			scaled_focus_area = self.scaledToSelection(item['area'], self.getPage(item['page_number']))
-			focus_areas.append(scaled_focus_area)
-		# feed focus areas to mask
-				
-		# turn on mask
-		self.mask.setApplied(True)
-		print "mask set visible"
-		self.mask.update()
-		print "update event sent to mask"
-
 
 class Page(QtGui.QFrame):
 
 	"""
-		Abstract page of oject containing data and image.
+		Page of the Document, exclusively graphical.
 	"""
 
 	def __init__(self, page_number, size, parent=None):
@@ -554,6 +538,7 @@ class Page(QtGui.QFrame):
 		self.page_number = page_number
 		self.document = self.parent()
 		self.display = self.document.parent()
+		self.setStyleSheet("Page { background-color : rgba(0, 0, 0, 0)}")
 
 		self.setContentsMargins(0, 0, 0, 0)
 		self.layout = QtGui.QHBoxLayout()
@@ -562,6 +547,7 @@ class Page(QtGui.QFrame):
 		self.layout.setSpacing(0)
 		self.layout.setContentsMargins(0, 0, 0, 0)
 		self.setLayout(self.layout)
+		print "page", page_number, "loaded"
 
 	def setPixmap(self):							#TODO: run this as a thread and gain speed.
 
@@ -569,6 +555,7 @@ class Page(QtGui.QFrame):
 			Renders and sets pixmap into Image label.
 		"""
 		
+		print "setting pixmap to page", self.page_number
 		if self.image.hasPixmap():
 			return
 
@@ -579,6 +566,37 @@ class Page(QtGui.QFrame):
 		self.image.setPixmap(pixmap)
 		self.image.pixmap = True
 		self.image.data = image
+
+	def hasPixmap(self):
+
+		"""
+			Returns True if the page's Image has a pixmap,
+			otherwise False.
+		"""
+		print "checking if page has pixmap"
+		return self.image.hasPixmap()
+
+	def checkPixmap(self):
+
+		"""
+			Sets the pixmap to page if not already the case.
+		"""
+
+		if not self.hasPixmap():
+			self.setPixmap()
+
+	def applyScale(self):
+
+		"""
+			Set pages' image size to scale.
+		"""
+		print "applying scale to page", self.page_number
+		scale = self.display.scale / 100
+
+		size = self.document.getSourcePage(self.page_number).pageSize()
+		self.image.setFixedSize(size.width() * scale, size.height() *scale)
+		self.image.selection_mask.setFixedSize(size.width() * scale, size.height() *scale)
+
 	
 
 class Image(QtGui.QLabel):
@@ -596,6 +614,9 @@ class Image(QtGui.QLabel):
 		self.setScaledContents(True)
 		self.pixmap = None
 		self.data = None
+		self.selection_mask = Mask(self)
+
+		print "image label loaded for page", self.parent().page_number
 
 	def hasPixmap(self): 
 
@@ -608,66 +629,67 @@ class Image(QtGui.QLabel):
 		else:
 			return False
 
-
 class Mask(QtGui.QWidget):
 
 	def __init__(self, parent=None):
 		QtGui.QWidget.__init__(self, parent)
-		
-		self.document = self.parent()
+		print "initiating mask"
+		self.image = self.parent()
+		self.page = self.image.parent()
+		self.document = self.page.document
 		self.display = self.document.display
 		self.painter = QtGui.QPainter()
 		self.applied = False
+		print "mask created for page"
 
 	def isApplied(self):
 
 		return self.applied
 
-	def applyToDocument(self):
+	def applyToPage(self):
 
-		if len(self.document.selection) > 0:
-			self.applied = True
-			self.update()
-		else:
-			self.applied = False # paranoid check
-			self.update()
+		print "applying mask to page", self.page.page_number
 
-	def removeFromDocument(self):
+		self.applied = True
+		self.update()
+
+	def removeFromPage(self):
+
+		print "removing mask from page", self.page.page_number
 
 		self.applied = False
 		self.update()
 
 	def paintEvent(self, event):
 
-		print "\n Mask received paint event"
+		print "\n Mask of page", self.page.page_number, "received paint event"
 
 		print "region to paint is", event.rect()
 
 		if self.isApplied():
 			print "applying mask..."
-			# make sure the mask covers the entire document
-			self.setGeometry(self.document.geometry())
+			# make sure the mask covers the entire page
+			self.setGeometry(0, 0, self.image.width(), self.image.height())
 
 			# define the mask
 			path = QtGui.QPainterPath()
 			path.setFillRule(QtCore.Qt.OddEvenFill)
-			path.addRect(QtCore.QRectF(self.document.geometry()))
+			path.addRect(QtCore.QRectF(0, 0, self.image.width(), self.image.height()))
 			# inset focus areas
 			for item in self.document.selection:
-				# get area to display according to scale and page index
-				rect = self.document.scaledToSelection(item['area'], self.document.getPage(item['page_number']))
-				path.addRect(rect)
+				if self.page.page_number == item['page_number']:
+					print "cutting selection out of mask"
+					# get area to display according to scale and page index
+					rect = self.document.scaledToSelection(item['area'], self.page.page_number)
+					print "mask selection", rect
+					path.addRect(rect)
 
 			# apply the mask
 			self.painter.begin(self)
 			self.painter.setBrush(QtGui.QBrush(QtGui.QColor(100, 100, 100, 70)))
-			self.painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 80)))
+			self.painter.setPen(QtGui.QPen(QtGui.QColor(100, 100, 100, 70)))
 			self.painter.drawPath(path)
 			self.painter.end()
-
-			print "done"
-			print "geo doc", self.document.geometry()
-			print "geo mask", self.geometry()
 		else:
 			print "removing mask"
 			pass
