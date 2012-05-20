@@ -504,7 +504,7 @@ class Document(QtGui.QFrame):
 		# paste selection to clipboard
 		copy = []
 		for item in self.selection:
-			copy.append(str(item['text']))
+			copy.append(unicode(item['text']))
 		self.display.parent().clipboard.setText(''.join(copy))
 	
 	def isTextSelected(self):
