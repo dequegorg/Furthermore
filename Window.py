@@ -47,6 +47,9 @@ class MainWindow(QtGui.QMainWindow):
 		self.addToolBar(self.toolbar)
 
 		self.createMenuBar()
+		self.clipboard = QtGui.QApplication.clipboard()
+
+
 
 	def createMenuBar(self):						#TODO: should create toolbar this way too
 
@@ -181,7 +184,6 @@ class Document(QtGui.QFrame):
 	def __init__(self, uri, parent=None):
 		QtGui.QFrame.__init__(self, parent)
 
-       		self.application = QtCore.QCoreApplication.instance()
 		self.display = self.parent()
 		self.source = Poppler.Document.load(uri)
 		self.source.setRenderHint(Poppler.Document.TextAntialiasing)
@@ -498,6 +500,12 @@ class Document(QtGui.QFrame):
 		if len(self.selection) > 0:
 			for page in self.getPages():
 				page.image.selection_mask.applyToPage()
+
+		# paste selection to clipboard
+		copy = []
+		for item in self.selection:
+			copy.append(str(item['text']))
+		self.display.parent().clipboard.setText(''.join(copy))
 	
 	def isTextSelected(self):
 
@@ -538,7 +546,7 @@ class Page(QtGui.QFrame):
 		self.page_number = page_number
 		self.document = self.parent()
 		self.display = self.document.parent()
-		self.setStyleSheet("Page { background-color : rgba(0, 0, 0, 0)}")
+		#self.setStyleSheet("Page { background-color : red}")
 
 		self.setContentsMargins(0, 0, 0, 0)
 		self.layout = QtGui.QHBoxLayout()
