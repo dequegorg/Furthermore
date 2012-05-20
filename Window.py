@@ -446,8 +446,8 @@ class Document(QtGui.QFrame):
 
 		# since the selection is applied to image (whereas it was draw from document)
 		# it is not necessary to add up the coordinate of the page.
-		return QtCore.QRectF(selection.x() * scale,
-				      	selection.y() * scale,
+		return QtCore.QRectF(selection.x() * scale - self.getPage(page).image.x(),
+				      	selection.y() * scale - self.getPage(page).image.y(),
 				      	selection.width() * scale,
 				      	selection.height() * scale)
 	
@@ -500,6 +500,7 @@ class Document(QtGui.QFrame):
 		if len(self.selection) > 0:
 			for page in self.getPages():
 				page.image.selection_mask.applyToPage()
+
 
 		# paste selection to clipboard
 		copy = []
@@ -656,22 +657,22 @@ class Mask(QtGui.QWidget):
 
 	def applyToPage(self):
 
-		print "applying mask to page", self.page.page_number
+		#print "applying mask to page", self.page.page_number
 
 		self.applied = True
-		self.update()
+		self.show()
 
 	def removeFromPage(self):
 
-		print "removing mask from page", self.page.page_number
+		#print "removing mask from page", self.page.page_number
 
 		self.applied = False
-		self.update()
+		self.hide()
 
 	def paintEvent(self, event):
 
 		print "\n Mask of page", self.page.page_number, "received paint event"
-
+		event.accept()
 		print "region to paint is", event.rect()
 
 		if self.isApplied():
