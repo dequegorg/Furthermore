@@ -43,15 +43,14 @@ class MainWindow(QtGui.QMainWindow):
 		self.display = Display(self)
 		self.setCentralWidget(self.display)
 
-		self.toolbar = ToolBar(self)
-		self.addToolBar(self.toolbar)
+		self.createToolBar()
 
 		self.createMenuBar()
 		self.clipboard = QtGui.QApplication.clipboard()
 
 
 
-	def createMenuBar(self):						#TODO: should create toolbar this way too
+	def createMenuBar(self):						
 
 		"""
 			Builds up menu bar and its content.
@@ -91,9 +90,22 @@ class MainWindow(QtGui.QMainWindow):
 		action_open.triggered.connect(self.display.displayDocument)
 		menu_doc.addAction(action_open)
 
-		
+	def createToolBar(self):
 
+		"""
+			Builds up tool bar and its content.
+		"""
 
+		toolbar = QtGui.QToolBar(self)
+		self.addToolBar(toolbar)
+
+		zoomInAction = QtGui.QAction('Zoom in', self)
+		zoomInAction.triggered.connect(self.display.zoomIn)
+		toolbar.addAction(zoomInAction)
+
+		zoomOutAction = QtGui.QAction('Zoom out', self)
+		zoomOutAction.triggered.connect(self.display.zoomOut)
+		toolbar.addAction(zoomOutAction)
 
 
 class Display(QtGui.QScrollArea):
@@ -147,29 +159,7 @@ class Display(QtGui.QScrollArea):
 		if self.scale == self.min_scale:
 			return
 		self.scale -= 10
-		self.document.applyScale()
-
-
-		
-	
-class ToolBar(QtGui.QToolBar):
-
-	"""
-		Main window's toolbar.
-	"""
-
-	def __init__(self, parent=None):
-		QtGui.QToolBar.__init__(self, parent)
-		
-		self.display = self.parent().display
-
-		self.zoomInAction = QtGui.QAction('Zoom in', self)
-		self.zoomInAction.triggered.connect(self.display.zoomIn)
-		self.addAction(self.zoomInAction)
-
-		self.zoomOutAction = QtGui.QAction('Zoom out', self)
-		self.zoomOutAction.triggered.connect(self.display.zoomOut)
-		self.addAction(self.zoomOutAction)		
+		self.document.applyScale()		
 
 
 
